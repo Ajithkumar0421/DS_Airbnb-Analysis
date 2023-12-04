@@ -1,0 +1,52 @@
+pip install pymongo
+
+import pymongo
+import numpy as np
+
+client=pymongo.MongoClient('mongodb+srv://Ajithkumar:Jiiimee147@cluster0.xgiqsol.mongodb.net/')
+
+db = client['sample_airbnb'] 
+
+col = db['listingsAndReviews']
+
+result = []
+for i in col.find({},{'_id','name','description','neighborhood_overview','price','security_deposit','cleaning_fee','extra_people','guests_included',
+                      'property_type','room_type','bed_type','cancellation_policy','number_of_reviews','review_scores',
+                      'accommodates','bedrooms','beds','availability','amenities','location','address','host'}):
+  result.append(i)
+
+import pandas as pd
+df = pd.DataFrame(result)
+
+df[['availablity_30','availability_60','availability_90','availability_365']] = df['availability'].apply(lambda i:pd.Series([i['availability_30'],i['availability_60'],i['availability_90'],i['availability_365']]))
+df[['host_id','host_name','host_response_time']]=df['host'].apply(lambda i:pd.Series([i['host_id'],i['host_name'],i.get('host_response_time',None)]))
+df[['street','country','country_code','location']]=df['address'].apply(lambda i:pd.Series([i['street'],i['country'],i['country_code'],i['location']]))
+df[['location_type','coordinates','is_location_exact']]=df['location'].apply(lambda i:pd.Series([i['type'],i['coordinates'],i['is_location_exact']]))
+df[['latitude','longitude']] = df['coordinates'].apply(lambda i:pd.Series([i[0],i[1]]))
+df['average_rating'] = df['review_scores'].apply(lambda i: np.mean([i.get('review_scores_accuracy', 0), i.get('review_scores_cleanliness', 0), i.get('review_scores_checkin', 0), i.get('review_scores_communication', 0), i.get('review_scores_location', 0), i.get('review_scores_value', 0)]))
+
+
+df.drop('availability',axis = 1,inplace = True)
+df.drop('review_scores',axis = 1,inplace = True)
+df.drop('host',axis = 1,inplace = True)
+df.drop('address',axis = 1,inplace = True)
+df.drop('location',axis = 1,inplace = True)
+df.drop('coordinates',axis = 1, inplace = True)
+
+df.info()
+
+df.isnull().sum()
+
+
+df['bedrooms'].fillna(0, inplace=True)
+df['beds'].fillna(0, inplace=True)
+df['cleaning_fee'].fillna('Not Specified', inplace=True)
+df['security_deposit'].fillna('Not Specified',inplace = True)
+df['host_response_time'].fillna('Not Specified',inplace = True)
+df['is_location_exact'] = df['is_location_exact'].map({False:'No',True:'Yes'})
+df['average_rating']=df['average_rating'].replace(0,'Unrated')
+
+df.head()
+
+
+df.to_csv('airbnb.csv', index=False)
